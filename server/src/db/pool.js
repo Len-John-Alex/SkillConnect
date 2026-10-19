@@ -18,11 +18,19 @@ if (!process.env.DATABASE_URL) {
 //
 // Pool settings are tuned for a single-process dev/production server.
 // Adjust max, idleTimeoutMillis, and connectionTimeoutMillis for scale.
+const isRemoteDb =
+  process.env.NODE_ENV === 'production' ||
+  (process.env.DATABASE_URL &&
+    (process.env.DATABASE_URL.includes('sslmode=') ||
+     process.env.DATABASE_URL.includes('.render.com') ||
+     process.env.DATABASE_URL.includes('.neon.tech') ||
+     process.env.DATABASE_URL.includes('.supabase.co')));
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 
-  // TLS: in production allow configurable rejectUnauthorized (default false for managed cloud DBs)
-  ...(process.env.NODE_ENV === 'production'
+  // TLS: Automatically handle SSL for remote cloud DBs (Neon, Render, Supabase)
+  ...(isRemoteDb
     ? {
         ssl: {
           rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === 'true',
@@ -32,7 +40,7 @@ const pool = new Pool({
 
   max: 10,                    // max simultaneous connections
   idleTimeoutMillis: 30_000,  // close idle connections after 30 s
-  connectionTimeoutMillis: 5_000, // fail fast if DB is unreachable
+  connectionTimeoutMillis: 15_000, // 15 s timeout for remote cloud handshakes
 });
 
 // ─── Error logging for idle clients ──────────────────────────────
