@@ -63,27 +63,39 @@ const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
   .split(',')
   .map((o) => o.trim());
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. curl, direct browser GET, Render health checks)
-      if (!origin) {
-        return callback(null, true);
-      }
-      const normalizedOrigin = origin.replace(/\/$/, '');
-      const isAllowed = allowedOrigins.some((o) => o === '*' || o.replace(/\/$/, '') === normalizedOrigin);
-      if (isAllowed) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS: origin "${origin}" not allowed`));
-      }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    maxAge: 86400, // 24 hours
-  })
-);
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. curl, direct browser GET, health checks)
+    if (!origin) {
+      return callback(null, true);
+    }
+    const normalizedOrigin = origin.replace(/\/+$/, '');
+    const isAllowed =
+      allowedOrigins.includes('*') ||
+      allowedOrigins.some((o) => {
+        const clean = o.replace(/\/+$/, '');
+        if (clean === normalizedOrigin) return true;
+        // Allow all vercel deployment subdomains if any vercel.app URL is in CLIENT_URL
+        if (clean.includes('vercel.app') && normalizedOrigin.endsWith('.vercel.app')) {
+          return true;
+        }
+        return false;
+      });
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS: origin "${origin}" not allowed`));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400, // 24 hours
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // ─── Body Parsers ────────────────────────────────────────────────
 app.use(express.json());
