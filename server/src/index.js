@@ -48,7 +48,14 @@ app.use(helmet({
   frameguard: { action: 'deny' },
 }));
 
-// ─── Health Check (No CORS / credentials required) ───────────────
+// ─── Health Check & Root (No CORS / credentials required) ────────
+app.get('/', (_req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'SkillConnect API',
+    version: '1.0.0',
+  });
+});
 app.use('/api/health', healthRouter);
 
 // ─── CORS ────────────────────────────────────────────────────────
@@ -59,11 +66,13 @@ const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Require explicit origin for credentialed requests
+      // Allow requests with no origin (e.g. curl, direct browser GET, Render health checks)
       if (!origin) {
-        return callback(new Error('CORS: Origin header is required'));
+        return callback(null, true);
       }
-      if (allowedOrigins.includes(origin)) {
+      const normalizedOrigin = origin.replace(/\/$/, '');
+      const isAllowed = allowedOrigins.some((o) => o === '*' || o.replace(/\/$/, '') === normalizedOrigin);
+      if (isAllowed) {
         callback(null, true);
       } else {
         callback(new Error(`CORS: origin "${origin}" not allowed`));
